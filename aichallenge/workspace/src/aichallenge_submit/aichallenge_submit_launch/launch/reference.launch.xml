@@ -127,7 +127,7 @@
 
   <!-- Pure Pursuit -->
   <let name="steering_tire_angle_gain_var" value="1.0" if="$(var simulation)"/><!-- original -->
-  <let name="steering_tire_angle_gain_var" value="2.0" if="$(var simulation)"/>
+  <let name="steering_tire_angle_gain_var" value="1.5" if="$(var simulation)"/>
  
   <let name="steering_tire_angle_gain_var" value="1.639" unless="$(var simulation)"/><!-- original -->
   <let name="steering_tire_angle_gain_var" value="2.0" unless="$(var simulation)"/>
@@ -136,7 +136,8 @@
     <param name="use_external_target_vel" value="false"/><!-- original -->
     <param name="use_external_target_vel" value="true"/>
     <param name="external_target_vel" value="10.0"/>
-    <param name="lookahead_gain" value="0.5"/>
+    <param name="lookahead_gain" value="0.5"/><!-- original -->
+    <param name="lookahead_gain" value="0.2"/>
     <param name="lookahead_min_distance" value="3.5"/>
     <param name="speed_proportional_gain" value="1.0"/>
     <param name="steering_tire_angle_gain" value="$(var steering_tire_angle_gain_var)"/>
