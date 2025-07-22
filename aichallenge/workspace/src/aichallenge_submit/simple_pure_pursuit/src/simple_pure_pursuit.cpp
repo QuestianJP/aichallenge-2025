@@ -46,14 +46,14 @@ SimplePurePursuit::SimplePurePursuit()
     "input/kinematics", bv_qos, [this](const Odometry::SharedPtr msg) { odometry_ = msg; });
   sub_trajectory_ = create_subscription<Trajectory>(
     "input/trajectory", bv_qos, [this](const Trajectory::SharedPtr msg) { trajectory_ = msg; });
-
+/*　シミュレータでは   pose_with_covarianceは不要なので、コメントアウト
   // 以下、by ChatGPT
   sub_pose_with_covariance_ = create_subscription<PoseWithCovarianceStamped>(
     "/sensing/gnss/pose_with_covariance", 1,
     [this](const PoseWithCovarianceStamped::SharedPtr msg) {
       pose_with_covariance_ = msg;
     });
-
+*/
   // 操舵角による速度制限
   sub_steering_status_ = create_subscription<SteeringReport>(
     "/vehicle/status/steering_status", 1,
@@ -308,6 +308,7 @@ void SimplePurePursuit::onTimer()
 */
     // 追加終わり
 
+/*  シミュレータでは   pose_with_covarianceは不要なので、コメントアウト
 //  GNSS信号停止時に速度を下げて移動する。
     if (current_longitudinal_vel >= 1.0 && // 移動中であり、かつ、
       std::hypot(odometry_->pose.pose.position.x - pose_with_covariance_->pose.pose.position.x,
@@ -315,6 +316,7 @@ void SimplePurePursuit::onTimer()
       > current_longitudinal_vel) { // 現在速度より大きい = 1s間の移動距離より大きい
       target_longitudinal_vel = std::min(target_longitudinal_vel, 1.0); // 1 m/s　に目標速度を制限
     }
+*/
 
     cmd.longitudinal.speed = target_longitudinal_vel;
 //  操舵角による速度制限
@@ -417,10 +419,12 @@ bool SimplePurePursuit::subscribeMessageAvailable()
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "trajectory is not available");
     return false;
   }
+/*  シミュレータでは   pose_with_covarianceは不要なので、コメントアウト
   if (!pose_with_covariance_) { // by ChatGPT
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "pose_with_covariance is not available");
+    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "pose_with_covariance is not available");
     return false;
   }
+*/
   if (!steering_status_) {  // 操舵角による速度制限
     RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "steering_status is not available");
     return false;

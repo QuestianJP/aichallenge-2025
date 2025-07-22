@@ -137,11 +137,13 @@
   <let name="steering_tire_angle_gain_var" value="3.278" unless="$(var simulation)"/>
   <let name="steering_tire_angle_gain_var" value="1.639" unless="$(var simulation)"/> <!-- original -->
   <let name="steering_tire_angle_gain_var" value="2.0" unless="$(var simulation)"/>
+  <let name="steering_tire_angle_gain_var" value="1.639" unless="$(var simulation)"/> <!-- original -->
+  <let name="steering_tire_angle_gain_var" value="1.0" if="$(var simulation)"/> <!-- simulator用original -->
 
   <node pkg="simple_pure_pursuit" exec="simple_pure_pursuit" name="simple_pure_pursuit_node" output="screen">
     <param name="predict_time" value="0.7"/> <!-- n秒先の自己位置を予測する -->
     <param name="predict_time" value="0.4"/> <!-- n秒先の自己位置を予測する -->
-    <param name="predict_time" value="0.2"/> <!-- n秒先の自己位置を予測する -->
+    <param name="predict_time" value="0.0"/> <!-- n秒先の自己位置を予測する -->
   
     <param name="use_external_target_vel" value="true"/>
     <param name="map_vel_gain" value="1.3"/> <!-- mapからの読み取り速度をvalue倍します -->
@@ -160,18 +162,18 @@
     
     <param name="lookahead_gain" value="0.5"/> <!-- Original -->
     <param name="lookahead_gain" value="0.5"/> <!-- Try -->
-    <param name="lookahead_gain" value="0.2"/> <!-- Try -->
+    <param name="lookahead_gain" value="0.2"/> <!-- Try2 -->
     <param name="lookahead_gain2" value="0.5"/> <!-- Try -->
     <param name="lookahead_gain2" value="0.3"/> <!-- Try -->
     <param name="lookahead_gain2" value="0.2"/> <!-- Try -->
-    <param name="lookahead_gain2" value="0.2"/> <!-- Try -->
+    <param name="lookahead_gain2" value="0.2"/> <!-- Try2 -->
     <param name="lookahead_min_distance" value="3.5"/> <!-- Original -->
     <param name="lookahead_min_distance" value="0.5"/> <!-- 15km/h OK -->
     <param name="lookahead_min_distance" value="2.0"/> <!-- Try -->
-    <param name="lookahead_min_distance" value="3.0"/> <!-- Try -->
+    <param name="lookahead_min_distance" value="2.5"/> <!-- Try2 -->
     <param name="lookahead_min_distance2" value="5.0"/> <!-- Try -->
     <param name="lookahead_min_distance2" value="4.5"/> <!-- Try -->
-    <param name="lookahead_min_distance2" value="4.0"/> <!-- Try -->
+    <param name="lookahead_min_distance2" value="4.0"/> <!-- Try2 -->
     <param name="speed_proportional_gain" value="1.0"/> <!-- Original -->
     <param name="speed_proportional_gain" value="100.0"/> <!-- Try -->
     <param name="speed_proportional_gain" value="1.0"/> <!-- Original -->
@@ -179,7 +181,7 @@
     <param name="acceleration_offset" value="0.1"/> <!-- Try -->
     <param name="steering_tire_angle_gain" value="$(var steering_tire_angle_gain_var)"/>
     <param name="steering_diff_gain" value="5.0"/> <!-- 操舵D制御用 -->
-    <param name="steering_diff_gain" value="0.5"/> <!-- 操舵D制御用 -->
+    <param name="steering_diff_gain" value="0.5"/> <!-- 操舵D制御用2 -->
 
     <param name="use_steer_angle_v_limit" value="false"/> <!-- 操舵角による速度制限をするかどうか -->
     <param name="predict_time_v_limit" value="1.0"/> <!-- n秒先の自己位置を予測する -->

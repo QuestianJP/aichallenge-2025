@@ -140,14 +140,17 @@ move_window() {
         if [ "$has_rviz" -eq 1 ] && { [ "$has_awsim" -eq 1 ] || [ "$has_gpu" -eq 0 ]; }; then
             break
         fi
-        sleep 1
+#        sleep 1
+        sleep 0.5
     done
     echo "AWSIMとRVizのウィンドウが見つかりました"
     # Move windows
     wmctrl -a "RViz" && wmctrl -r "RViz" -e 0,0,0,1920,1043
-    sleep 1
+#    sleep 1
+    sleep 0.5
     wmctrl -a "AWSIM" && wmctrl -r "AWSIM" -e 0,0,0,900,1043
-    sleep 2
+#    sleep 2
+    sleep 1
 }
 
 # Trap Ctrl+C (SIGINT) and normal termination (EXIT)
@@ -173,7 +176,8 @@ echo "AWSIM PID: $PID_AWSIM"
 echo "$PID_AWSIM" >"$PID_FILE"
 # recursively get child processes
 get_child_pids "$PID_AWSIM"
-sleep 3
+#sleep 3
+sleep 1.5
 
 # Start Autoware with nohup
 echo "Start Autoware"
@@ -183,12 +187,14 @@ echo "Autoware PID: $PID_AUTOWARE"
 echo "$PID_AUTOWARE" >>"$PID_FILE"
 # recursively get child processes
 get_child_pids "$PID_AUTOWARE"
-sleep 3
+#sleep 3
+sleep 1.5
 
 # run updater
 (
     while true; do
-        sleep 5
+#        sleep 5
+        sleep 2.5
 
         # update if the main process is still running
         if [[ -n $PID_AWSIM ]] && kill -0 "$PID_AWSIM" 2>/dev/null; then
