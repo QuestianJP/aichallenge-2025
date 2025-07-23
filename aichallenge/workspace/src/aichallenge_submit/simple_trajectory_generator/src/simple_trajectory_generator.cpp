@@ -141,7 +141,7 @@ private:
             continue;
           }
 
-          if (new_csv_path != current_csv_path_) {
+//          if (new_csv_path != current_csv_path_) {
             RCLCPP_INFO(get_logger(), "csv_path parameter changed from '%s' to '%s'", 
                         current_csv_path_.c_str(), new_csv_path.c_str());
             
@@ -155,7 +155,7 @@ private:
               result.successful = false;
               result.reason = "Failed to load new CSV file.";
             }
-          }
+//          }
         } else {
           RCLCPP_WARN(get_logger(), "Parameter 'csv_path' received with wrong type. Expected string.");
           result.successful = false;
