@@ -1,5 +1,11 @@
 #!/bin/bash
-
+cleanup_zenoh() {
+    echo "Zenoh bridge cleanup..."
+    pkill -f "zenoh-bridge-ros2dds" 2>/dev/null || true
+    sleep 0.5
+}
+# shellcheck disable=SC1091
+source /opt/ros/humble/setup.bash
 mode="${1}"
 
 case "${mode}" in
@@ -11,6 +17,7 @@ case "${mode}" in
     ;;
 "vehicle")
     zenoh-bridge-ros2dds -c /vehicle/zenoh.json5 &
+    trap cleanup_zenoh EXIT SIGINT SIGTERM
     opts=("simulation:=false" "use_sim_time:=false" "run_rviz:=false")
     ;;
 "rosbag")

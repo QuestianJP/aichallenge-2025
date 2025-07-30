@@ -6,8 +6,10 @@ VEHICLE_DIR="/home/$USER/aichallenge-2025/vehicle"
 
 AIC_CD="cd $AIC_DIR"
 VEHICLE_CD="cd $VEHICLE_DIR"
+DOCKER_KILL_CMD="bash docker_kill.sh"
+AIC_AUTOWARE_DOCKER_RUN_CMD="bash docker_run.sh dev vehicle"
+AIC_DOCKER_RUN_CMD="bash docker_run.sh dev"
 
-AIC_DOCKER_RUN_CMD="bash docker_run.sh dev cpu"
 KART_DOCKER_RUN_CMD="bash run_driver.bash"
 
 AIC_WORKSPACE_CD_CMD="cd /aichallenge"
@@ -38,9 +40,9 @@ select-pane -t 0
 send-keys "set -x" C-m
 send-keys "$AIC_CD" C-m
 send-keys "echo $AIC_WORKSPACE_CD_CMD" C-m
-send-keys "echo $SOURCE_CMD" C-m
-send-keys "echo run_autoware.bash vehicle" C-m
-send-keys "$AIC_DOCKER_RUN_CMD" C-m
+# 起動する前に全ての起動中のDockerコンテナを停止
+send-keys "echo $DOCKER_KILL_CMD" C-m
+send-keys "$AIC_AUTOWARE_DOCKER_RUN_CMD" C-m
 
 # pane 1 is used for aic rosbag record
 select-pane -t 1
