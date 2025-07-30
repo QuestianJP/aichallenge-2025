@@ -14,8 +14,11 @@ case "${target}" in
     exit 1
     ;;
 esac
-
-if [ "${device}" = "cpu" ]; then
+cmd=""
+if [ "${device}" = "vehicle" ]; then
+    cmd=" bash /aichallenge/run_autoware.bash vehicle"
+    echo "[INFO] Running in Vehicle mode (forced by argument)"
+elif [ "${device}" = "cpu" ]; then
     opts=""
     echo "[INFO] Running in CPU mode (forced by argument)"
 elif [ "${device}" = "gpu" ]; then
@@ -28,7 +31,6 @@ else
     opts=""
     echo "[INFO] No NVIDIA GPU detected → running on CPU"
 fi
-
 mkdir -p output
 
 LOG_DIR="output/latest"
@@ -37,4 +39,4 @@ LOG_FILE="$LOG_DIR/docker_run.log"
 echo "A rocker run log is stored at : file://$LOG_FILE"
 
 # shellcheck disable=SC2086
-rocker ${opts} --x11 --devices /dev/dri --user --net host --privileged --name "aichallenge-2025-$(date "+%Y-%m-%d-%H-%M-%S")" --volume ${volume} -- "aichallenge-2025-${target}-${USER}" 2>&1 | tee "$LOG_FILE"
+rocker ${opts} --x11 --devices /dev/dri --user --net host --privileged --name "aichallenge-2025-$(date "+%Y-%m-%d-%H-%M-%S")" --volume ${volume} -- "aichallenge-2025-${target}-${USER}" ${cmd} 2>&1 | tee "$LOG_FILE"

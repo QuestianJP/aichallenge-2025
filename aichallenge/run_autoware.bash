@@ -4,6 +4,8 @@ cleanup_zenoh() {
     pkill -f "zenoh-bridge-ros2dds" 2>/dev/null || true
     sleep 0.5
 }
+# shellcheck disable=SC1091
+source /opt/ros/humble/setup.bash
 mode="${1}"
 
 case "${mode}" in
