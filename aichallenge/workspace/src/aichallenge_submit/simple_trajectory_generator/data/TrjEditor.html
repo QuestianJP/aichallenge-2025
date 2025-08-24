@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Raceline Editor</title>
+    <style>
+        body { font-family: sans-serif; }
+        #canvas { border: 1px solid black; cursor: grab; }
+        #controls { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>Raceline Editor</h1>
+
+<div id="controls">
+    <label for="osmFile">OSM Map (lanelet2_map.osm):</label>
+    <input type="file" id="osmFile" accept=".osm">
+    <br>
+    <label for="csvFile">Raceline CSV (raceline_optimized.csv):</label>
+    <input type="file" id="csvFile" accept=".csv">
+    <br>
+    <button id="saveButton">Save Edited CSV</button>
+    <button id="deleteButton">Delete Selected</button>
+    <button id="interpolateButton">Interpolate</button>
+    <label for="editMode">Edit Mode:</label>
+    <select id="editMode">
+        <option value="parallel">Parallel</option>
+        <option value="soft">Soft</option>
+    </select>
+    <label for="speedInput">Speed:</label>
+    <input type="number" id="speedInput" step="0.1" disabled>
+</div>
+
+<canvas id="canvas" width="1000" height="800"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const osmFileInput = document.getElementById('osmFile');
+    const csvFileInput = document.getElementById('csvFile');
+    const saveButton = document.getElementById('saveButton');
+    const deleteButton = document.getElementById('deleteButton');
+    const interpolateButton = document.getElementById('interpolateButton');
+    const editModeSelect = document.getElementById('editMode');
+    const speedInput = document.getElementById('speedInput');
+
+    let editMode = 'parallel';
+    editModeSelect.addEventListener('change', (e) => {
+        editMode = e.target.value;
+    });
+
+    let osmData = null;
+    let csvData = null;
+    let originalCsvData = null;
+    let csvHeaders = [];
+
+    let view = {
+        x: 0,
+        y: 0,
+        scale: 0.1,
+        minX: Infinity,
+        maxX: -Infinity,
+        minY: Infinity,
+        maxY: -Infinity,
+    };
+
+    let dragStartPos = { x: 0, y: 0 };
+    let draggingPoint = null;
+    let selectionDragState = null;
+    let isPanning = false;
+    let isSelecting = false;
+    let selectionRect = null;
+    let selectedPoints = new Set();
+    let lastMousePos = {x: 0, y: 0};
+
+    function parseOsm(xmlText) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+        const nodes = new Map();
+        let initialLoad = view.maxX === -Infinity;
+
+        xmlDoc.querySelectorAll('node').forEach(node => {
+            const id = node.getAttribute('id');
+            let local_x = null;
+            let local_y = null;
+            node.querySelectorAll('tag').forEach(tag => {
+                if (tag.getAttribute('k') === 'local_x') {
+                    local_x = parseFloat(tag.getAttribute('v'));
+                }
+                if (tag.getAttribute('k') === 'local_y') {
+                    local_y = parseFloat(tag.getAttribute('v'));
+                }
+            });
+            if (local_x !== null && local_y !== null) {
+                nodes.set(id, { x: local_x, y: local_y });
+                if (initialLoad) {
+                    view.minX = Math.min(view.minX, local_x);
+                    view.maxX = Math.max(view.maxX, local_x);
+                    view.minY = Math.min(view.minY, local_y);
+                    view.maxY = Math.max(view.maxY, local_y);
+                }
+            }
+        });
+
+        const ways = [];
+        xmlDoc.querySelectorAll('way').forEach(way => {
+            const wayNodes = [];
+            way.querySelectorAll('nd').forEach(nd => {
+                const ref = nd.getAttribute('ref');
+                if (nodes.has(ref)) {
+                    wayNodes.push(nodes.get(ref));
+                }
+            });
+            if (wayNodes.length > 1) {
+                 ways.push(wayNodes);
+            }
+        });
+        
+        const relations = [];
+        xmlDoc.querySelectorAll('relation').forEach(relation => {
+            let isLanelet = false;
+            relation.querySelectorAll('tag').forEach(tag => {
+                if (tag.getAttribute('k') === 'type' && tag.getAttribute('v') === 'lanelet') {
+                    isLanelet = true;
+                }
+            });
+            if (isLanelet) {
+                const relationMembers = { left: null, right: null };
+                relation.querySelectorAll('member').forEach(member => {
+                    if (member.getAttribute('type') === 'way') {
+                        if (member.getAttribute('role') === 'left') {
+                            relationMembers.left = member.getAttribute('ref');
+                        } else if (member.getAttribute('role') === 'right') {
+                            relationMembers.right = member.getAttribute('ref');
+                        }
+                    }
+                });
+                relations.push(relationMembers);
+            }
+        });
+
+        const laneletWays = [];
+        relations.forEach(rel => {
+            if (rel.left) {
+                const wayNodes = [];
+                const way = xmlDoc.querySelector(`way[id='${rel.left}']`);
+                if (way) {
+                    way.querySelectorAll('nd').forEach(nd => {
+                        const ref = nd.getAttribute('ref');
+                        if (nodes.has(ref)) {
+                            wayNodes.push(nodes.get(ref));
+                        }
+                    });
+                    if(wayNodes.length > 1) laneletWays.push(wayNodes);
+                }
+            }
+            if (rel.right) {
+                const wayNodes = [];
+                const way = xmlDoc.querySelector(`way[id='${rel.right}']`);
+                if (way) {
+                    way.querySelectorAll('nd').forEach(nd => {
+                        const ref = nd.getAttribute('ref');
+                        if (nodes.has(ref)) {
+                            wayNodes.push(nodes.get(ref));
+                        }
+                    });
+                    if(wayNodes.length > 1) laneletWays.push(wayNodes);
+                }
+            }
+        });
+
+        return { nodes, ways: laneletWays.length > 0 ? laneletWays : ways };
+    }
+
+    function parseCsv(csvText) {
+        const lines = csvText.trim().replace(/\r\n/g, '\n').split('\n');
+        csvHeaders = lines.shift().split(',');
+        const xIndex = csvHeaders.indexOf('x');
+        const yIndex = csvHeaders.indexOf('y');
+
+        if (xIndex === -1 || yIndex === -1) {
+            alert('CSV must have "x" and "y" columns.');
+            return [];
+        }
+        
+        let initialLoad = view.maxX === -Infinity;
+
+        const points = lines.map(line => {
+            const values = line.split(',');
+            const point = {
+                x: parseFloat(values[xIndex]),
+                y: parseFloat(values[yIndex]),
+                originalData: values
+            };
+            if(initialLoad){
+                view.minX = Math.min(view.minX, point.x);
+                view.maxX = Math.max(view.maxX, point.x);
+                view.minY = Math.min(view.minY, point.y);
+                view.maxY = Math.max(view.maxY, point.y);
+            }
+            return point;
+        });
+        
+        return points;
+    }
+
+    function fitToScreen() {
+        if (view.maxX === -Infinity) return;
+
+        const worldWidth = view.maxX - view.minX;
+        const worldHeight = view.maxY - view.minY;
+
+        const scaleX = canvas.width / worldWidth;
+        const scaleY = canvas.height / worldHeight;
+        view.scale = Math.min(scaleX, scaleY) * 0.9;
+
+        const worldCenterX = view.minX + worldWidth / 2;
+        const worldCenterY = view.minY + worldHeight / 2;
+
+        view.x = worldCenterX;
+        view.y = worldCenterY;
+    }
+
+    function redraw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.scale(view.scale, -view.scale);
+        ctx.translate(-view.x, -view.y);
+
+
+        // Draw 1m grid
+        const worldViewWidth = canvas.width / view.scale;
+        const worldViewHeight = canvas.height / view.scale;
+        const worldLeft = view.x - worldViewWidth / 2;
+        const worldRight = view.x + worldViewWidth / 2;
+        const worldTop = view.y + worldViewHeight / 2;
+        const worldBottom = view.y - worldViewHeight / 2;
+
+        const startX = Math.floor(worldLeft);
+        const endX = Math.ceil(worldRight);
+        const startY = Math.floor(worldBottom);
+        const endY = Math.ceil(worldTop);
+
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth = 2 / view.scale;
+
+        for (let i = startX; i <= endX; i++) {
+            ctx.beginPath();
+            ctx.moveTo(i, worldBottom);
+            ctx.lineTo(i, worldTop);
+            ctx.stroke();
+        }
+
+        for (let i = startY; i <= endY; i++) {
+            ctx.beginPath();
+            ctx.moveTo(worldLeft, i);
+            ctx.lineTo(worldRight, i);
+            ctx.stroke();
+        }
+
+        // Draw OSM ways
+        if (osmData) {
+            ctx.strokeStyle = '#ccc';
+            ctx.lineWidth = 2 / view.scale;
+            osmData.ways.forEach(way => {
+                ctx.beginPath();
+                const startPoint = way[0];
+                ctx.moveTo(startPoint.x, startPoint.y);
+                for (let i = 1; i < way.length; i++) {
+                    ctx.lineTo(way[i].x, way[i].y);
+                }
+                ctx.stroke();
+            });
+        }
+
+        // Draw Original CSV points (ghost)
+        if (originalCsvData) {
+            // Draw line connecting ghost points
+            ctx.strokeStyle = 'rgba(128, 128, 128, 0.3)';
+            ctx.lineWidth = 1 / view.scale;
+            if (originalCsvData.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(originalCsvData[0].x, originalCsvData[0].y);
+                for(let i = 1; i < originalCsvData.length; i++) {
+                    ctx.lineTo(originalCsvData[i].x, originalCsvData[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw ghost points
+            originalCsvData.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 6 / view.scale, 0, 2 * Math.PI);
+                ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+                ctx.fill();
+            });
+        }
+
+        // Draw CSV points
+        if (csvData) {
+            // Draw line connecting points
+            ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)';
+            ctx.lineWidth = 1 / view.scale;
+            if (csvData.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(csvData[0].x, csvData[0].y);
+                for(let i = 1; i < csvData.length; i++) {
+                    ctx.lineTo(csvData[i].x, csvData[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw points
+            csvData.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 6 / view.scale, 0, 2 * Math.PI);
+                ctx.fillStyle = selectedPoints.has(point) ? 'red' : 'blue';
+                ctx.fill();
+            });
+        }
+        
+        ctx.restore();
+        
+        // Draw selection rectangle
+        if (selectionRect) {
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.rect(selectionRect.x, selectionRect.y, selectionRect.w, selectionRect.h);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+
+    function getMousePos(canvas, evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: evt.clientX - rect.left,
+            y: evt.clientY - rect.top
+        };
+    }
+    
+    function screenToWorld(x, y) {
+        const screenX = x - canvas.width / 2;
+        const screenY = y - canvas.height / 2;
+        return {
+            x: screenX / view.scale + view.x,
+            y: screenY / -view.scale + view.y
+        };
+    }
+    
+    function worldToScreen(x, y) {
+        const screenX = (x - view.x) * view.scale;
+        const screenY = (y - view.y) * -view.scale;
+        return {
+            x: screenX + canvas.width / 2,
+            y: screenY + canvas.height / 2
+        };
+    }
+
+    function updateSpeedInput() {
+        if (selectedPoints.size === 0) {
+            speedInput.value = '';
+            speedInput.disabled = true;
+            return;
+        }
+
+        speedInput.disabled = false;
+        const lastSelected = Array.from(selectedPoints).pop();
+        const speedIndex = csvHeaders.indexOf('speed');
+        if (speedIndex !== -1) {
+            speedInput.value = lastSelected.originalData[speedIndex];
+        }
+    }
+
+    osmFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                osmData = parseOsm(e.target.result);
+                fitToScreen();
+                redraw();
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    csvFileInput.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                csvData = parseCsv(e.target.result);
+                originalCsvData = JSON.parse(JSON.stringify(csvData));
+                fitToScreen();
+                redraw();
+            };
+            reader.readAsText(file);
+        }
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+        const mousePos = getMousePos(canvas, e);
+        const worldPos = screenToWorld(mousePos.x, mousePos.y);
+        lastMousePos = mousePos;
+        dragStartPos = worldPos;
+
+        if (e.button === 2) { // Right click for panning
+            isPanning = true;
+            canvas.style.cursor = 'move';
+            return;
+        }
+
+        if (csvData) {
+            for (const point of csvData) {
+                const dx = worldPos.x - point.x;
+                const dy = worldPos.y - point.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 5 / view.scale) {
+                    draggingPoint = point;
+                    canvas.style.cursor = 'grabbing';
+                    if (selectedPoints.has(draggingPoint)) {
+                        selectionDragState = {
+                            points: new Map()
+                        };
+                        let maxDist = 0;
+                        selectedPoints.forEach(p => {
+                            if (p === draggingPoint) return;
+                            const d = Math.sqrt(Math.pow(p.x - draggingPoint.x, 2) + Math.pow(p.y - draggingPoint.y, 2));
+                            if (d > maxDist) maxDist = d;
+                        });
+
+                        selectedPoints.forEach(p => {
+                            const d = Math.sqrt(Math.pow(p.x - draggingPoint.x, 2) + Math.pow(p.y - draggingPoint.y, 2));
+                            const falloff = (maxDist > 0) ? Math.pow(Math.cos((d / maxDist) * (Math.PI / 2)), 2) : 1;
+                            selectionDragState.points.set(p, { initial: { ...p }, falloff });
+                        });
+                    }
+                    return;
+                }
+            }
+        }
+        
+        isSelecting = true;
+        selectionRect = { x: mousePos.x, y: mousePos.y, w: 0, h: 0 };
+        if (!e.shiftKey) {
+            selectedPoints.clear();
+        }
+        updateSpeedInput();
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const mousePos = getMousePos(canvas, e);
+        const worldPos = screenToWorld(mousePos.x, mousePos.y);
+        
+        if (draggingPoint) {
+            const dx = worldPos.x - dragStartPos.x;
+            const dy = worldPos.y - dragStartPos.y;
+
+            if (selectionDragState && editMode === 'soft') {
+                selectionDragState.points.forEach((state, p) => {
+                    p.x = state.initial.x + dx * state.falloff;
+                    p.y = state.initial.y + dy * state.falloff;
+                });
+            } else if (selectedPoints.has(draggingPoint)) { // Parallel move
+                const moveDx = worldPos.x - dragStartPos.x;
+                const moveDy = worldPos.y - dragStartPos.y;
+                selectedPoints.forEach(p => {
+                    p.x += moveDx;
+                    p.y += moveDy;
+                });
+                 dragStartPos = worldPos;
+            } else {
+                draggingPoint.x = worldPos.x;
+                draggingPoint.y = worldPos.y;
+            }
+            redraw();
+        } else if (isSelecting) {
+            selectionRect.w = mousePos.x - lastMousePos.x;
+            selectionRect.h = mousePos.y - lastMousePos.y;
+            redraw();
+        } else if (isPanning) {
+            const dx = (mousePos.x - lastMousePos.x) / view.scale;
+            const dy = (mousePos.y - lastMousePos.y) / view.scale;
+            view.x -= dx;
+            view.y += dy;
+            lastMousePos = mousePos;
+            redraw();
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (draggingPoint) {
+            draggingPoint = null;
+            selectionDragState = null;
+        } else if (isSelecting) {
+            const rect = {
+                x: Math.min(lastMousePos.x, e.clientX - canvas.getBoundingClientRect().left),
+                y: Math.min(lastMousePos.y, e.clientY - canvas.getBoundingClientRect().top),
+                x2: Math.max(lastMousePos.x, e.clientX - canvas.getBoundingClientRect().left),
+                y2: Math.max(lastMousePos.y, e.clientY - canvas.getBoundingClientRect().top)
+            };
+
+            if (csvData) {
+                csvData.forEach(p => {
+                    const screenPos = worldToScreen(p.x, p.y);
+                    if (screenPos.x > rect.x && screenPos.x < rect.x2 &&
+                        screenPos.y > rect.y && screenPos.y < rect.y2) {
+                        if (selectedPoints.has(p)) {
+                            if(e.shiftKey) selectedPoints.delete(p);
+                        } else {
+                            selectedPoints.add(p);
+                        }
+                    }
+                });
+            }
+            isSelecting = false;
+            selectionRect = null;
+        } else if (isPanning) {
+            isPanning = false;
+        } else {
+            selectedPoints.clear();
+        }
+        
+        canvas.style.cursor = 'grab';
+        redraw();
+        updateSpeedInput();
+    });
+    
+    canvas.addEventListener('mouseout', () => {
+        if (isSelecting) {
+            isSelecting = false;
+            selectionRect = null;
+            redraw();
+        }
+        draggingPoint = null;
+        selectionDragState = null;
+        isPanning = false;
+        canvas.style.cursor = 'grab';
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const mousePos = getMousePos(canvas, e);
+        const worldPosBeforeZoom = screenToWorld(mousePos.x, mousePos.y);
+
+        const zoomFactor = 1.1;
+        const scale = e.deltaY < 0 ? view.scale * zoomFactor : view.scale / zoomFactor;
+        view.scale = Math.max(0.01, Math.min(100, scale));
+
+        const worldPosAfterZoom = screenToWorld(mousePos.x, mousePos.y);
+        
+        view.x += (worldPosBeforeZoom.x - worldPosAfterZoom.x);
+        view.y += (worldPosBeforeZoom.y - worldPosAfterZoom.y);
+
+        redraw();
+    });
+    
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    speedInput.addEventListener('change', (e) => {
+        const newSpeed = e.target.value;
+        if (isNaN(newSpeed)) return;
+
+        const speedIndex = csvHeaders.indexOf('speed');
+        if (speedIndex !== -1) {
+            selectedPoints.forEach(p => {
+                p.originalData[speedIndex] = newSpeed;
+            });
+        }
+    });
+
+    saveButton.addEventListener('click', () => {
+        if (!csvData) {
+            alert('No CSV data to save.');
+            return;
+        }
+
+        const xIndex = csvHeaders.indexOf('x');
+        const yIndex = csvHeaders.indexOf('y');
+
+        const csvContent = [
+            csvHeaders.join(',')
+        ].concat(
+            csvData.map(point => {
+                const newData = [...point.originalData];
+                newData[xIndex] = point.x;
+                newData[yIndex] = point.y;
+                return newData.join(',');
+            })
+        ).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "raceline_optimized_edited.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    deleteButton.addEventListener('click', () => {
+        if (selectedPoints.size === 0) {
+            alert('No points selected.');
+            return;
+        }
+
+        if (confirm(`Are you sure you want to delete ${selectedPoints.size} points?`)) {
+            csvData = csvData.filter(p => !selectedPoints.has(p));
+            selectedPoints.clear();
+            redraw();
+            updateSpeedInput();
+        }
+    });
+
+    interpolateButton.addEventListener('click', () => {
+        if (selectedPoints.size < 2) {
+            alert('Please select at least 2 points to interpolate between.');
+            return;
+        }
+
+        const numPointsToAdd = parseInt(prompt('How many points to add between each selected pair?', '1'));
+
+        if (isNaN(numPointsToAdd) || numPointsToAdd < 1) {
+            alert('Invalid number.');
+            return;
+        }
+
+        const sortedSelectedPoints = Array.from(selectedPoints).sort((a, b) => csvData.indexOf(a) - csvData.indexOf(b));
+        const indices = sortedSelectedPoints.map(p => csvData.indexOf(p));
+
+        let offset = 0;
+        for (let i = 0; i < sortedSelectedPoints.length - 1; i++) {
+            const p1 = sortedSelectedPoints[i];
+            const p2 = sortedSelectedPoints[i+1];
+
+            const p1Index = indices[i] + offset;
+
+            const newPoints = [];
+            for (let j = 1; j <= numPointsToAdd; j++) {
+                const t = j / (numPointsToAdd + 1);
+                const newPoint = {
+                    x: p1.x + (p2.x - p1.x) * t,
+                    y: p1.y + (p2.y - p1.y) * t,
+                    originalData: []
+                };
+                
+                const newOriginalData = [];
+                for(let k = 0; k < csvHeaders.length; k++) {
+                    const header = csvHeaders[k];
+                    const val1 = parseFloat(p1.originalData[k]);
+                    const val2 = parseFloat(p2.originalData[k]);
+                    if (!isNaN(val1) && !isNaN(val2)) {
+                        newOriginalData[k] = val1 + (val2 - val1) * t;
+                    } else {
+                        newOriginalData[k] = p1.originalData[k]; // copy from first point if not a number
+                    }
+                }
+                newPoint.originalData = newOriginalData;
+                newPoints.push(newPoint);
+            }
+            
+            csvData.splice(p1Index + 1, 0, ...newPoints);
+            offset += numPointsToAdd;
+        }
+
+        selectedPoints.clear();
+        redraw();
+        updateSpeedInput();
+    });
+
+</script>
+
+</body>
+</html>
+
