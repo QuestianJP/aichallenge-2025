@@ -174,15 +174,8 @@ void SimplePurePursuit::onTimer()
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
-  if (
-    (closet_traj_point_idx == trajectory_->points.size() - 1) ||
-    (trajectory_->points.size() <= 2)) {
-    cmd.longitudinal.speed = 0.0;
-    cmd.longitudinal.acceleration = -10.0;
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
-  } else {
-    // get closest trajectory point from current position
-    TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
+  // get closest trajectory point from current position
+  TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
 
     // calc longitudinal speed and acceleration
     double target_longitudinal_vel =
@@ -243,7 +236,7 @@ void SimplePurePursuit::onTimer()
     if (true) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
       lookahead_point_msg.point.x = lookahead_point_x;
       lookahead_point_msg.point.y = lookahead_point_y;
-      lookahead_point_msg.point.z = predicted_yaw;
+      lookahead_point_msg.point.z = predicted_yaw;  // closet_traj_point.pose.position.z
     } else {    // デバッグ情報色々
   //    lookahead_point_msg.point.x = odometry_->pose.pose.position.x;
   //    lookahead_point_msg.point.y = odometry_->pose.pose.position.y;
