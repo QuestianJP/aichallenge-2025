@@ -174,13 +174,12 @@ void SimplePurePursuit::onTimer()
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
-    if (
-    (closet_traj_point_idx == trajectory_->points.size() - 1) ||
-    (trajectory_->points.size() <= 2)) {
-    cmd.longitudinal.speed = 0.0;
-    cmd.longitudinal.acceleration = -10.0;
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
-  } else {
+//  if ((closet_traj_point_idx == trajectory_->points.size() - 1) ||
+//      (trajectory_->points.size() <= 2)) {
+//    cmd.longitudinal.speed = 0.0;
+//    cmd.longitudinal.acceleration = -10.0;
+//    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
+//  } else {
   // get closest trajectory point from current position
   TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
 
@@ -403,7 +402,7 @@ void SimplePurePursuit::onTimer()
 */
     pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
 
-  } //　残りポイントが少なくなったら、操舵をやめて停止するようになっている。操舵が必要な場合は、このelse範囲を変更しなければならない。
+//  } //　残りポイントが少なくなったら、操舵をやめて停止するようになっている。操舵が必要な場合は、このelse範囲を変更しなければならない。
   pub_cmd_->publish(cmd);
   cmd.lateral.steering_tire_angle /=  steering_tire_angle_gain_;
   pub_raw_cmd_->publish(cmd);
