@@ -286,8 +286,15 @@ void SimplePurePursuit::onTimer()
 
     alpha = std::atan2(lookahead_point2_y - rear_y, lookahead_point2_x - rear_x) - predicted_yaw; // 遠方のルックアヘッド
     double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
-    cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする
-
+      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする
+/*
+    if (steering_tire_angle * steering_tire_angle2 < 0.0) { // ２つの操舵角が逆向きの場合、遠方の操舵角との和の半分を目標操舵角とする。
+//      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする
+      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * steering_tire_angle2;  // 遠方の操舵角を目標操舵角にする。
+    } else { // 同じ向きの場合、近方の操舵角を目標操舵角とする。
+      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * steering_tire_angle;
+    }
+*/
     //  上記で、simple_pure_pursuitによる操舵角を算出
     //　実際のステアリングの制御は触れるファイルとしては存在指定なさそう、すなわち、
     //  操舵角指示への追従制御を触れないので、指示角を調整するのが良さそう。
