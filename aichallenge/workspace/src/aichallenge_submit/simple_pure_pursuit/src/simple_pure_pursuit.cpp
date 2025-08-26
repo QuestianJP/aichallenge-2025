@@ -80,13 +80,16 @@ void SimplePurePursuit::onTimer()
       use_external_target_vel_ ? external_target_vel_ : closet_traj_point.longitudinal_velocity_mps;
     double current_longitudinal_vel = odometry_->twist.twist.linear.x;
 
-    cmd.longitudinal.speed = target_longitudinal_vel;
-    cmd.longitudinal.acceleration =
+    //target_longitudinal_vel = std::min(target_longitudinal_vel, double(9.72222));
+
+//    cmd.longitudinal.speed = target_longitudinal_vel;
+     cmd.longitudinal.speed = double(9.7);
+      cmd.longitudinal.acceleration =
       speed_proportional_gain_ * (target_longitudinal_vel - current_longitudinal_vel);
 
     // calc lateral control
     //// calc lookahead distance
-    double lookahead_distance = lookahead_gain_ * target_longitudinal_vel + lookahead_min_distance_;
+    double lookahead_distance = (lookahead_gain_ * target_longitudinal_vel + lookahead_min_distance_);
     //// calc center coordinate of rear wheel
     double rear_x = odometry_->pose.pose.position.x -
                     wheel_base_ / 2.0 * std::cos(odometry_->pose.pose.orientation.z);
