@@ -92,14 +92,16 @@ cleanup() {
         if kill -0 "$PID_ROSBAG" 2>/dev/null; then
             echo "Rosbag did not terminate gracefully, forcing kill"
             kill -9 "$PID_ROSBAG"
-            sleep 0.5
+#            sleep 0.5
+            sleep 0.4
         fi
     fi
 
     # Additional cleanup for any remaining rosbag processes
     echo "Cleaning up any remaining rosbag processes..."
     pkill -f "ros2 bag record" 2>/dev/null || true
-    sleep 1
+#    sleep 1
+    sleep 0.5
 
     # shutdown ROS2 nodes
     echo "Shutting down ROS2 nodes gracefully..."
@@ -126,7 +128,8 @@ cleanup() {
     if [ -d "rosbag2_autoware" ]; then
         # Wait a bit more to ensure rosbag files are fully written
         echo "Waiting for rosbag files to be fully written..."
-        sleep 2
+#        sleep 2
+        sleep 1
 
         # Check if rosbag directory has content and is not being actively written
         if [ -f "rosbag2_autoware/metadata.yaml" ] && [ ! -f "rosbag2_autoware/metadata.yaml.tmp" ]; then
@@ -199,10 +202,10 @@ move_window() {
     # Move windows
     wmctrl -a "RViz" && wmctrl -r "RViz" -e 0,0,0,1920,1043
 #    sleep 1
-    sleep 0.5
+    sleep 0.25
     wmctrl -a "AWSIM" && wmctrl -r "AWSIM" -e 0,0,0,900,1043
 #    sleep 2
-    sleep 1
+    sleep 0.5
 }
 
 # Trap Ctrl+C (SIGINT) and normal termination (EXIT)
@@ -275,7 +278,8 @@ echo "$PID_ROSBAG" >>"$PID_FILE"
 # recursively get child processes
 get_child_pids "$PID_ROSBAG"
 # Wait a moment for rosbag to initialize and verify it's running
-sleep 2
+#sleep 2
+sleep 1
 if ! kill -0 "$PID_ROSBAG" 2>/dev/null; then
     echo "Warning: Rosbag process is not running"
 else
@@ -288,7 +292,8 @@ wait "$PID_AWSIM"
 # Stop recording rviz2
 echo "Stop screen capture"
 bash /aichallenge/publish.bash screen
-sleep 3
+#sleep 3
+sleep 1.5
 
 # Convert result
 echo "Convert result"
