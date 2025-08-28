@@ -175,15 +175,15 @@ void SimplePurePursuit::onTimer()
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
-  if (
-    (closet_traj_point_idx == trajectory_->points.size() - 1) ||
-    (trajectory_->points.size() <= 2)) {
-    cmd.longitudinal.speed = 0.0;
-    cmd.longitudinal.acceleration = -10.0;
-    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
-  } else {
+//  if (
+//    (closet_traj_point_idx == trajectory_->points.size() - 1) ||
+//    (trajectory_->points.size() <= 2)) {
+//    cmd.longitudinal.speed = 0.0;
+//    cmd.longitudinal.acceleration = -10.0;
+//    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
+//  } else {
   // get closest trajectory point from current position
-  TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
+    TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
 
     // calc longitudinal speed and acceleration
     double target_longitudinal_vel =
@@ -219,17 +219,15 @@ void SimplePurePursuit::onTimer()
 
     //// search lookahead point
 
-    // 例: trajectory_->points は std::vector<TrajectoryPoint>
     auto & pts = trajectory_->points;
     const std::size_t n = pts.size();
-    if (n == 0) {
-      // 適宜エラーハンドリング・・・一旦省略
+    if (n <= 20) {
+      // データが少なすぎる場合のエラーハンドリング
       return;
     }
 
-    // 開始インデックスは範囲内に丸める（負でない前提）
-    const std::size_t start1 = closet_traj_point_idx % n;
-    const std::size_t start2 = predicted_closet_traj_point_idx % n;
+    // ループ開始インデックス (20点目が Start)
+    constexpr std::size_t LOOP_START_IDX = 19;  // 0-based index
 
     // 距離関数
     auto dist_from_rear = [&](const TrajectoryPoint &p) {
@@ -239,29 +237,36 @@ void SimplePurePursuit::onTimer()
       return std::hypot(p.pose.position.x - predicted_rear_x, p.pose.position.y - predicted_rear_y);
     };
 
-    // 「リング状に find_if する」ヘルパ
+    // 汎用リング探索関数
     auto find_lookahead = [&](std::size_t start_idx, auto &&dist_fn, double threshold) {
-      auto begin_it = pts.begin();
-      auto end_it   = pts.end();
-      auto start_it = begin_it + start_idx;
+      auto pred = [&](const TrajectoryPoint &p) {
+        return dist_fn(p) >= threshold;
+      };
 
-      auto pred = [&](const TrajectoryPoint &p) { return dist_fn(p) >= threshold; };
+      // 区間1: [start_idx, end)
+      auto it = std::find_if(pts.begin() + start_idx, pts.end(), pred);
+      if (it != pts.end()) return it;
 
-      // 区間1: [start_it, end)
-      auto it = std::find_if(start_it, end_it, pred);
-      if (it != end_it) return it;
+      // 区間2: [LOOP_START_IDX, start_idx)
+      // → 2周目以降は 0〜18 は無視
+      auto it2 = std::find_if(pts.begin() + LOOP_START_IDX, pts.begin() + start_idx, pred);
+      if (it2 != pts.begin() + start_idx) return it2;
 
-      // 区間2: [begin, start_it)
-      auto it2 = std::find_if(begin_it, start_it, pred);
-      if (it2 != start_it) return it2;  // 見つかった
-
-      // どこにも閾値以上が存在しない → 開始位置の直前を採用（リングの直前）
-      return (start_it == begin_it) ? (end_it - 1) : (start_it - 1);
+      // それでも見つからなければ → start_idx の直前を返す
+      return (start_idx == LOOP_START_IDX) ? (pts.end() - 1) : (pts.begin() + start_idx - 1);
     };
 
-    // 実際の検索
-    auto lookahead_point_itr  = find_lookahead(start1, dist_from_rear,       lookahead_distance);
-    auto lookahead_point2_itr = find_lookahead(start2, dist_from_pred_rear,  lookahead_distance2);
+    // --- 開始 index を決定する
+    auto clamp_to_loop = [&](std::size_t idx) {
+      // 1周目中ならそのまま、2周目以降は最低でも LOOP_START_IDX にする
+      return (idx < LOOP_START_IDX) ? idx : std::max(idx, LOOP_START_IDX);
+    };
+
+    // --- 実際の検索
+    auto lookahead_point_itr  = find_lookahead(
+        clamp_to_loop(closet_traj_point_idx), dist_from_rear,      lookahead_distance);
+    auto lookahead_point2_itr = find_lookahead(
+        clamp_to_loop(predicted_closet_traj_point_idx), dist_from_pred_rear, lookahead_distance2);
 
 
 /*    
@@ -460,7 +465,7 @@ void SimplePurePursuit::onTimer()
 */
     pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
 
-  } //　残りポイントが少なくなったら、操舵をやめて停止するようになっている。操舵が必要な場合は、このelse範囲を変更しなければならない。
+//  } //　残りポイントが少なくなったら、操舵をやめて停止するようになっている。操舵が必要な場合は、このelse範囲を変更しなければならない。
   pub_cmd_->publish(cmd);
   cmd.lateral.steering_tire_angle /=  steering_tire_angle_gain_;
   pub_raw_cmd_->publish(cmd);
