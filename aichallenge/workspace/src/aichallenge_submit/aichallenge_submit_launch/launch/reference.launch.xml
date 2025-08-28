@@ -169,7 +169,7 @@
     <param name="lookahead_gain2" value="0.5"/> <!-- Try2 -->
     <param name="lookahead_min_distance2" value="5.0"/> <!-- Try -->
     <param name="lookahead_min_distance2" value="4.5"/> <!-- Try -->
-    <param name="lookahead_min_distance2" value="7.0"/> <!-- Try2 -->
+    <param name="lookahead_min_distance2" value="3.5"/> <!-- Try2 -->
     <param name="speed_proportional_gain" value="1.0"/> <!-- Original -->
     <param name="speed_proportional_gain" value="100.0"/> <!-- Try -->
     <param name="speed_proportional_gain" value="1.0"/> <!-- Original -->

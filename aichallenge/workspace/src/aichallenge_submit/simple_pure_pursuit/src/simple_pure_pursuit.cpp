@@ -218,6 +218,53 @@ void SimplePurePursuit::onTimer()
     double predicted_rear_y = predicted_y - wheel_base_ / 2.0 * std::sin(predicted_yaw);
 
     //// search lookahead point
+
+    // 例: trajectory_->points は std::vector<TrajectoryPoint>
+    auto & pts = trajectory_->points;
+    const std::size_t n = pts.size();
+    if (n == 0) {
+      // 適宜エラーハンドリング・・・一旦省略
+      return;
+    }
+
+    // 開始インデックスは範囲内に丸める（負でない前提）
+    const std::size_t start1 = closet_traj_point_idx % n;
+    const std::size_t start2 = predicted_closet_traj_point_idx % n;
+
+    // 距離関数
+    auto dist_from_rear = [&](const TrajectoryPoint &p) {
+      return std::hypot(p.pose.position.x - rear_x, p.pose.position.y - rear_y);
+    };
+    auto dist_from_pred_rear = [&](const TrajectoryPoint &p) {
+      return std::hypot(p.pose.position.x - predicted_rear_x, p.pose.position.y - predicted_rear_y);
+    };
+
+    // 「リング状に find_if する」ヘルパ
+    auto find_lookahead = [&](std::size_t start_idx, auto &&dist_fn, double threshold) {
+      auto begin_it = pts.begin();
+      auto end_it   = pts.end();
+      auto start_it = begin_it + start_idx;
+
+      auto pred = [&](const TrajectoryPoint &p) { return dist_fn(p) >= threshold; };
+
+      // 区間1: [start_it, end)
+      auto it = std::find_if(start_it, end_it, pred);
+      if (it != end_it) return it;
+
+      // 区間2: [begin, start_it)
+      auto it2 = std::find_if(begin_it, start_it, pred);
+      if (it2 != start_it) return it2;  // 見つかった
+
+      // どこにも閾値以上が存在しない → 開始位置の直前を採用（リングの直前）
+      return (start_it == begin_it) ? (end_it - 1) : (start_it - 1);
+    };
+
+    // 実際の検索
+    auto lookahead_point_itr  = find_lookahead(start1, dist_from_rear,       lookahead_distance);
+    auto lookahead_point2_itr = find_lookahead(start2, dist_from_pred_rear,  lookahead_distance2);
+
+
+/*    
     auto lookahead_point_itr = std::find_if(
       trajectory_->points.begin() + closet_traj_point_idx, trajectory_->points.end(),
       [&](const TrajectoryPoint & point) {
@@ -234,7 +281,7 @@ void SimplePurePursuit::onTimer()
     if (lookahead_point2_itr == trajectory_->points.end()) {
       lookahead_point2_itr = trajectory_->points.end() - 1;
     }
-
+*/
     double lookahead_point_x = lookahead_point_itr->pose.position.x;
     double lookahead_point_y = lookahead_point_itr->pose.position.y;
     double lookahead_point2_x = lookahead_point2_itr->pose.position.x;
