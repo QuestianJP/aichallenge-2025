@@ -1,0 +1,36 @@
+
+① 操舵角の計算部分
+Before
+double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - yaw;
+double steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
+
+
+After
+double dx = lookahead_point_x - rear_x;
+double dy = lookahead_point_y - rear_y;
+double path_yaw = std::atan2(dy, dx);
+double theta_e = path_yaw - yaw;
+double e = calcLateralDeviation(lookahead_point_itr->pose, odometry_->pose.pose); // 横方向誤差
+double steering_tire_angle = theta_e + std::atan2(k_gain * e, current_longitudinal_vel);
+
+/*
+calcLateralDeviation は既に tier4_autoware_utils に含まれているので使えます。
+k_gain は新たに Stanley用のゲインとしてパラメータ化すると良いです。
+*/
+
+② 予測位置を使う場合
+予測位置に対しても同様に Stanley法を適用できます：
+double dx2 = lookahead_point2_x - predicted_rear_x;
+double dy2 = lookahead_point2_y - predicted_rear_y;
+double path_yaw2 = std::atan2(dy2, dx2);
+double theta_e2 = path_yaw2 - predicted_yaw;
+double e2 = calcLateralDeviation(lookahead_point2_itr->pose, predicted_pos); // 予測位置に対する横方向誤差
+double steering_tire_angle2 = theta_e2 + std::atan2(k_gain * e2, current_longitudinal_vel);
+
+③ 操舵角の統合
+現在と予測の操舵角を平均する処理はそのまま活かせます：
+cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;
+
+④ パラメータ追加（Stanley用）
+stanley_gain_ = declare_parameter<float>("stanley_gain", 1.0);
+
