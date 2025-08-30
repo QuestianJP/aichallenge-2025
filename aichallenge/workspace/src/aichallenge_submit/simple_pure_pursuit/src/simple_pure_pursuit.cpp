@@ -175,8 +175,6 @@ void SimplePurePursuit::onTimer()
   size_t closet_traj_point_idx = findNearestIndex(trajectory_->points, odometry_->pose.pose.position);
   size_t predicted_closet_traj_point_idx = findNearestIndex(trajectory_->points, predicted_pos.position);
 
-
-
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
@@ -275,7 +273,6 @@ void SimplePurePursuit::onTimer()
     geometry_msgs::msg::PointStamped lookahead_point_msg;
     lookahead_point_msg.header.stamp = get_clock()->now();
     lookahead_point_msg.header.frame_id = "map";
-//    pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でメッセージ発行は下の方で。
 
     // calc steering angle for lateral control
     // 以下、Original
@@ -285,7 +282,9 @@ void SimplePurePursuit::onTimer()
     double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - yaw; // 車体の位置と、向きを予測
     double steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
 
-    alpha = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
+//    double alpha2 = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
+//    double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha2), lookahead_distance2);
+    double alpha = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
     double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
 
 //  cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 現在と、未来の2つの平均を操舵角にする
@@ -417,9 +416,9 @@ void SimplePurePursuit::onTimer()
       dbg_cnt++;
 */
       // 以下、モニタ用に、ルックアヘッドポイントに代入
-      lookahead_point_msg.point.x = steering_tire_angle;
-      lookahead_point_msg.point.y = steering_tire_angle2;
-      lookahead_point_msg.point.z = delta_pp;  // closet_traj_point.pose.position.z
+      lookahead_point_msg.point.x = alpha;
+      lookahead_point_msg.point.y = yaw;
+      lookahead_point_msg.point.z = steering_tire_angle;  // closet_traj_point.pose.position.z
 //      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
 //      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
 //      lookahead_point_msg.point.y = lookahead_point_x;
