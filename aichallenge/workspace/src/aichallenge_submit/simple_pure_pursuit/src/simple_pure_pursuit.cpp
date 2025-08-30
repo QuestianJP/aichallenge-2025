@@ -282,7 +282,7 @@ void SimplePurePursuit::onTimer()
     geometry_msgs::msg::PointStamped lookahead_point_msg;
     lookahead_point_msg.header.stamp = get_clock()->now();
     lookahead_point_msg.header.frame_id = "map";
-    if (true) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
+    if (false) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
       lookahead_point_msg.point.x = lookahead_point_x;
       lookahead_point_msg.point.y = lookahead_point_y;
       lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
@@ -301,15 +301,18 @@ void SimplePurePursuit::onTimer()
       dbg_cnt++;
 */
       // 以下、モニタ用に、ルックアヘッドポイントに代入
+      lookahead_point_msg.point.x = lookahead_point2_x;
+      lookahead_point_msg.point.y = lookahead_point2_y;
+      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
 //      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
-      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
-      lookahead_point_msg.point.y = lookahead_point_x;
+//      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
+//      lookahead_point_msg.point.y = lookahead_point_x;
 
   //    lookahead_point_msg.point.y = predicted_y;
 //      lookahead_point_msg.point.y = pose_with_covariance_->pose.pose.position.y;
   //    lookahead_point_msg.point.x = rear_x;
   //    lookahead_point_msg.point.y = rear_y;
-      lookahead_point_msg.point.z = predicted_yaw;
+//      lookahead_point_msg.point.z = predicted_yaw;
   //    lookahead_point_msg.point.z = lookahead_distance;// 問題なさそう。
   //    lookahead_point_msg.point.z = predicted_x;  // こちらも一応連続になった。
     }
@@ -363,15 +366,15 @@ void SimplePurePursuit::onTimer()
     const double delta_pp = 0.5 * (steering_tire_angle + steering_tire_angle2);
 
     // --- Stanley 横偏差項 ---
-//　　■線形補間へ置換。置換前
+/*
+    //　　■線形補間へ置換。置換前
     // 経路上の最近傍点とその向き（既に closet_traj_point_idx は算出済み）
     const auto &nearest_pt = trajectory_->points.at(closet_traj_point_idx);
     const double path_yaw = tf2::getYaw(nearest_pt.pose.orientation);
    // 車体位置と経路点の相対位置（現在位置を使用）
     const double ex = odometry_->pose.pose.position.x - nearest_pt.pose.position.x;
     const double ey = odometry_->pose.pose.position.y - nearest_pt.pose.position.y;
-
-/*
+*/
 //    ■線形補間へ置換。置換後
     int idx = closet_traj_point_idx;
     int idx2;
@@ -400,24 +403,21 @@ void SimplePurePursuit::onTimer()
 
     // 補間された yaw（p0→p1 の方向）
     const double path_yaw = std::atan2(v.y(), v.x());
-    const double ex = nearest_x - rear_x;
-    const double ey = nearest_y - rear_y;
-
+    double ex = nearest_x - rear_x;
+    double ey = nearest_y - rear_y;
 //    ■線形補間終わり
-*/
+
     // 左正・右負の横偏差（経路座標系）
     const double e_y = -ex * std::sin(path_yaw) + ey * std::cos(path_yaw);
  
     // 低速での暴れ防止のためのソフトニングを含めた速度
     const double v_soft = 0.1; // [m/s] 必要ならパラメータ化
-    const double v = std::max(current_longitudinal_vel, v_soft);
-    const double delta_stanley = std::atan2(stanley_gain_ * e_y, v);
-    //  左右逆だった
-//    const double delta_stanley = -std::atan2(stanley_gain_ * e_y, v);
+    const double vel = std::max(current_longitudinal_vel, v_soft);
+    const double delta_stanley = std::atan2(stanley_gain_ * e_y, vel);
 
     // --- 合成操舵角（幾何 + 横偏差） ---
 //    const double delta = delta_pp + delta_stanley;
-    const double delta = delta_pp*0 + delta_stanley;
+    const double delta = delta_pp + delta_stanley*0;
 
     // 1) 実際に出す操舵角（既存のゲインでスケーリング）
     cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * delta;

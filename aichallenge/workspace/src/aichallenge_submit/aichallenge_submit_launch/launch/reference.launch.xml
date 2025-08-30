@@ -182,7 +182,7 @@
 
     <param name="stanley_gain" value="1.0"/> <!-- Stanley Gain用 -->
     <param name="stanley_gain" value="0.5"/> <!-- Stanley Gain用 -->
-    <param name="stanley_gain" value="0.1"/> <!-- Stanley Gain用 -->
+    <param name="stanley_gain" value="0.5"/> <!-- Stanley Gain用 -->
 
     <param name="use_steer_angle_v_limit" value="false"/> <!-- 操舵角による速度制限をするかどうか -->
     <param name="predict_time_v_limit" value="1.0"/> <!-- n秒先の自己位置を予測する -->
