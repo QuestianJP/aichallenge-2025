@@ -282,38 +282,8 @@ void SimplePurePursuit::onTimer()
 //    double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) -
 //                   tf2::getYaw(odometry_->pose.pose.orientation);
 
-/* by copilot
-    double dx = lookahead_point_x - rear_x;
-    double dy = lookahead_point_y - rear_y;
-    double path_yaw = std::atan2(dy, dx);
-    double theta_e = path_yaw - yaw;
-    double e = calcLateralDeviation(lookahead_point_itr->pose, odometry_->pose.pose);
-    double steering_tire_angle = theta_e + std::atan2(stanley_gain_ * e, current_longitudinal_vel);
-
-    dx = lookahead_point2_x - predicted_rear_x;
-    dy = lookahead_point2_y - predicted_rear_y;
-    path_yaw = std::atan2(dy, dx);
-    theta_e = path_yaw - predicted_yaw;
-    e = calcLateralDeviation(lookahead_point2_itr->pose, predicted_pos);
-    double steering_tire_angle2 = theta_e + std::atan2(stanley_gain_ * e, current_longitudinal_vel);
-*/
     double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - yaw; // 車体の位置と、向きを予測
-  // 操舵ブレ対策として、本来なら、車体の向きはの加速度に制限をかけるべきだが、根拠はないが、yawを現在地との間にしてみる。・・・うまく行かなかったので、コメントアウト
-//    double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - (predicted_yaw + yaw) / 2; // 車体の位置と、向きを予測
-//    cmd.lateral.steering_tire_angle =
-//      steering_tire_angle_gain_ * std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
     double steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
-/* ChatGPTの最初の提案：ボツ
-    // --- Stanley 補正を追加 ---
-    double k_steer = stanley_gain_; // ← パラメータで設定
-    double v = std::max(current_longitudinal_vel, 0.1); // 速度が0のとき暴れ防止
-    double cross_track_error = calcLateralError(trajectory_, odometry_->pose.pose); // 横偏差計算関数を用意
-    double delta_stanley = std::atan2(k_steer * cross_track_error, v);
-
-    // 合成操舵角
-    double delta = steering_tire_angle + delta_stanley;
-*/
-
 
     alpha = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
     double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
@@ -384,21 +354,6 @@ void SimplePurePursuit::onTimer()
     // 2) デバッグや速度制限に使っていた基準角（現在舵角との差）
 //    double reference_target_angle = cmd.lateral.steering_tire_angle - steering_status_->steering_tire_angle;
 
-/*
-    if (steering_tire_angle * steering_tire_angle2 < 0.0) { // ２つの操舵角が逆向きの場合、遠方の操舵角との和の半分を目標操舵角とする。
-//      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする
-      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * steering_tire_angle2;  // 遠方の操舵角を目標操舵角にする。
-    } else { // 同じ向きの場合、近方の操舵角を目標操舵角とする。
-      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * steering_tire_angle;
-    }
-*/
-    //  上記で、simple_pure_pursuitによる操舵角を算出
-    //　実際のステアリングの制御は触れるファイルとしては存在指定なさそう、すなわち、
-    //  操舵角指示への追従制御を触れないので、指示角を調整するのが良さそう。
-    //  前回指示角と今回指示角の増減から、指示を調整する。差が大きくなっていれば、その差分を加える。
-    //  差が小さくなっていれば、もとの指示値のままとする。
-    //  走行速度を考慮したゲイン調整については、速度による操舵遅れも操舵指示の大きさの変化に反映済みと考えて、不要とする。
-
     // ここから追加
 /* 以下、微分制御追加 */
 /*
@@ -412,62 +367,9 @@ void SimplePurePursuit::onTimer()
 */
     // 追加終わり
 
-/*  シミュレータでは   pose_with_covarianceは不要なので、コメントアウト
-//  GNSS信号停止時に速度を下げて移動する。
-    if (current_longitudinal_vel >= 1.0 && // 移動中であり、かつ、
-      std::hypot(odometry_->pose.pose.position.x - pose_with_covariance_->pose.pose.position.x,
-                   odometry_->pose.pose.position.y - pose_with_covariance_->pose.pose.position.y)
-      > current_longitudinal_vel) { // 現在速度より大きい = 1s間の移動距離より大きい
-      target_longitudinal_vel = std::min(target_longitudinal_vel, 1.0); // 1 m/s　に目標速度を制限
-    }
-*/
-
     cmd.longitudinal.speed = target_longitudinal_vel;
 //  操舵角による速度制限
     if (use_steer_angle_v_limit_) { //  指令値と現在の操舵角との差が一定以上になったら、速度制限をかける。先読み方式はバタついてしまっていた。早めの減速には使えそうだが。
-/*
-//    以下、先読み方式
-      predicted_x = odometry_->pose.pose.position.x + std::cos(yaw) * current_longitudinal_vel * predict_time_v_limit_;
-      predicted_y = odometry_->pose.pose.position.y + std::sin(yaw) * current_longitudinal_vel * predict_time_v_limit_;
-      predicted_yaw = yaw + odometry_->twist.twist.angular.z * predict_time_v_limit_; // zは、車体の角速度（ラジアン/秒）
-      predicted_pos.position.x = predicted_x;
-      predicted_pos.position.y = predicted_y;
-
-      closet_traj_point_idx = findNearestIndex(trajectory_->points, predicted_pos.position);
-      closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
-
-      rear_x = predicted_x - wheel_base_ / 2.0 * std::cos(predicted_yaw);
-      rear_y = predicted_y - wheel_base_ / 2.0 * std::sin(predicted_yaw);
-
-      //// search lookahead point
-      lookahead_point_itr = std::find_if(
-        trajectory_->points.begin() + closet_traj_point_idx, trajectory_->points.end(),
-        [&](const TrajectoryPoint & point) {
-          return std::hypot(point.pose.position.x - rear_x, point.pose.position.y - rear_y) >= lookahead_distance;
-        });
-      lookahead_point2_itr = std::find_if(
-        trajectory_->points.begin() + closet_traj_point_idx, trajectory_->points.end(),
-        [&](const TrajectoryPoint & point) {
-          return std::hypot(point.pose.position.x - rear_x, point.pose.position.y - rear_y) >= lookahead_distance2;
-        });
-      if (lookahead_point_itr == trajectory_->points.end()) {
-        lookahead_point_itr = trajectory_->points.end() - 1;
-      }
-      if (lookahead_point2_itr == trajectory_->points.end()) {
-        lookahead_point2_itr = trajectory_->points.end() - 1;
-      }
-      lookahead_point_x = lookahead_point_itr->pose.position.x;
-      lookahead_point_y = lookahead_point_itr->pose.position.y;
-      lookahead_point2_x = lookahead_point2_itr->pose.position.x;
-      lookahead_point2_y = lookahead_point2_itr->pose.position.y;
-
-      alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - predicted_yaw; // 車体の位置と、向きを予測
-      steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
-
-      alpha = std::atan2(lookahead_point2_y - rear_y, lookahead_point2_x - rear_x) - predicted_yaw; // 遠方のルックアヘッド
-      steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
-      double reference_target_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする
-*/
       double reference_target_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0 - steering_status_->steering_tire_angle;
 
       lookahead_point_msg.point.z = reference_target_angle;
@@ -495,18 +397,6 @@ void SimplePurePursuit::onTimer()
       }
     }
 */
-/*
-    if (use_steer_angle_v_limit_) { // 実機の操舵指令値と実際の曲がり具合を調べるためのコード。余裕がなくて使わなかった。
-      if (cmd.lateral.steering_tire_angle < 0
-       && cmd.lateral.steering_tire_angle < -v_limit_angle_)
-        cmd.lateral.steering_tire_angle = -v_limit_angle_;
-      else if (cmd.lateral.steering_tire_angle >= 0
-       && cmd.lateral.steering_tire_angle > v_limit_angle_)
-        cmd.lateral.steering_tire_angle = v_limit_angle_;
-    }
-*/
-    pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
-
 
     if (false) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
       lookahead_point_msg.point.x = lookahead_point_x;
@@ -527,9 +417,9 @@ void SimplePurePursuit::onTimer()
       dbg_cnt++;
 */
       // 以下、モニタ用に、ルックアヘッドポイントに代入
-      lookahead_point_msg.point.x = lookahead_point2_x;
-      lookahead_point_msg.point.y = lookahead_point2_y;
-      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
+      lookahead_point_msg.point.x = steering_tire_angle;
+      lookahead_point_msg.point.y = steering_tire_angle2;
+      lookahead_point_msg.point.z = delta_pp;  // closet_traj_point.pose.position.z
 //      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
 //      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
 //      lookahead_point_msg.point.y = lookahead_point_x;
@@ -542,6 +432,7 @@ void SimplePurePursuit::onTimer()
   //    lookahead_point_msg.point.z = lookahead_distance;// 問題なさそう。
   //    lookahead_point_msg.point.z = predicted_x;  // こちらも一応連続になった。
     }
+    pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
 
   pub_cmd_->publish(cmd);
   cmd.lateral.steering_tire_angle /=  steering_tire_angle_gain_;
