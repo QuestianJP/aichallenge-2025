@@ -35,7 +35,8 @@ SimplePurePursuit::SimplePurePursuit()
   angle_limit_v_(declare_parameter<float>("angle_limit_v", 4.16667)),  // 15km/h
   angle_limit_v2_(declare_parameter<float>("angle_limit_v2", 4.16667)),  // 先読み用
   predict_time_(declare_parameter<float>("predict_time", 0.5)),  // 先読み用
-  steering_tire_angle_gain_(declare_parameter<float>("steering_tire_angle_gain", 1.0))
+  steering_tire_angle_gain_(declare_parameter<float>("steering_tire_angle_gain", 1.0)),
+  stanley_gain_(declare_parameter<float>("stanley_gain", 1.0))  // Stanley制御用 
 {
   pub_cmd_ = create_publisher<AckermannControlCommand>("output/control_cmd", 1);
   pub_raw_cmd_ = create_publisher<AckermannControlCommand>("output/raw_control_cmd", 1);
@@ -100,6 +101,8 @@ SimplePurePursuit::SimplePurePursuit()
           lookahead_min_distance2_ = param.as_double();
         } else if (param.get_name() == "speed_proportional_gain") {
           speed_proportional_gain_ = param.as_double();
+        } else if (param.get_name() == "stanley_gain") {
+          stanley_gain_ = param.as_double();
         }
       }
       return *results;
@@ -172,6 +175,8 @@ void SimplePurePursuit::onTimer()
   size_t closet_traj_point_idx = findNearestIndex(trajectory_->points, odometry_->pose.pose.position);
   size_t predicted_closet_traj_point_idx = findNearestIndex(trajectory_->points, predicted_pos.position);
 
+
+
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
@@ -223,6 +228,7 @@ void SimplePurePursuit::onTimer()
     const std::size_t n = pts.size();
     if (n <= 20) {
       // データが少なすぎる場合のエラーハンドリング
+      // そういうことはない前提で何もしない。
       return;
     }
 
@@ -268,25 +274,6 @@ void SimplePurePursuit::onTimer()
     auto lookahead_point2_itr = find_lookahead(
         clamp_to_loop(predicted_closet_traj_point_idx), dist_from_pred_rear, lookahead_distance2);
 
-
-/*    
-    auto lookahead_point_itr = std::find_if(
-      trajectory_->points.begin() + closet_traj_point_idx, trajectory_->points.end(),
-      [&](const TrajectoryPoint & point) {
-        return std::hypot(point.pose.position.x - rear_x, point.pose.position.y - rear_y) >= lookahead_distance;
-      });
-    auto lookahead_point2_itr = std::find_if(
-      trajectory_->points.begin() + predicted_closet_traj_point_idx, trajectory_->points.end(),
-      [&](const TrajectoryPoint & point) {
-        return std::hypot(point.pose.position.x - predicted_rear_x, point.pose.position.y - predicted_rear_y) >= lookahead_distance2;
-      });
-    if (lookahead_point_itr == trajectory_->points.end()) { // ■多分この式は誤っている。上の式でのサーチから誤っている。そのため、ループの終端で始点にすすまない。
-      lookahead_point_itr = trajectory_->points.end() - 1;
-    }
-    if (lookahead_point2_itr == trajectory_->points.end()) {
-      lookahead_point2_itr = trajectory_->points.end() - 1;
-    }
-*/
     double lookahead_point_x = lookahead_point_itr->pose.position.x;
     double lookahead_point_y = lookahead_point_itr->pose.position.y;
     double lookahead_point2_x = lookahead_point2_itr->pose.position.x;
@@ -332,16 +319,112 @@ void SimplePurePursuit::onTimer()
     // 以下、Original
 //    double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) -
 //                   tf2::getYaw(odometry_->pose.pose.orientation);
+
+/* by copilot
+    double dx = lookahead_point_x - rear_x;
+    double dy = lookahead_point_y - rear_y;
+    double path_yaw = std::atan2(dy, dx);
+    double theta_e = path_yaw - yaw;
+    double e = calcLateralDeviation(lookahead_point_itr->pose, odometry_->pose.pose);
+    double steering_tire_angle = theta_e + std::atan2(stanley_gain_ * e, current_longitudinal_vel);
+
+    dx = lookahead_point2_x - predicted_rear_x;
+    dy = lookahead_point2_y - predicted_rear_y;
+    path_yaw = std::atan2(dy, dx);
+    theta_e = path_yaw - predicted_yaw;
+    e = calcLateralDeviation(lookahead_point2_itr->pose, predicted_pos);
+    double steering_tire_angle2 = theta_e + std::atan2(stanley_gain_ * e, current_longitudinal_vel);
+*/
     double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - yaw; // 車体の位置と、向きを予測
   // 操舵ブレ対策として、本来なら、車体の向きはの加速度に制限をかけるべきだが、根拠はないが、yawを現在地との間にしてみる。・・・うまく行かなかったので、コメントアウト
 //    double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - (predicted_yaw + yaw) / 2; // 車体の位置と、向きを予測
 //    cmd.lateral.steering_tire_angle =
 //      steering_tire_angle_gain_ * std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
     double steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
+/* ChatGPTの最初の提案：ボツ
+    // --- Stanley 補正を追加 ---
+    double k_steer = stanley_gain_; // ← パラメータで設定
+    double v = std::max(current_longitudinal_vel, 0.1); // 速度が0のとき暴れ防止
+    double cross_track_error = calcLateralError(trajectory_, odometry_->pose.pose); // 横偏差計算関数を用意
+    double delta_stanley = std::atan2(k_steer * cross_track_error, v);
+
+    // 合成操舵角
+    double delta = steering_tire_angle + delta_stanley;
+*/
+
 
     alpha = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
     double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
-      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 現在と、未来の2つのルックアヘッドの平均を操舵角にする
+
+//  cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 現在と、未来の2つの平均を操舵角にする
+//  上記を下記に置き換え
+    // 以下、よく考慮されたChatGPT版
+    // --- Pure Pursuit の平均（現在と x秒後） ---
+    const double delta_pp = 0.5 * (steering_tire_angle + steering_tire_angle2);
+
+    // --- Stanley 横偏差項 ---
+//　　■線形補間へ置換。置換前
+    // 経路上の最近傍点とその向き（既に closet_traj_point_idx は算出済み）
+    const auto &nearest_pt = trajectory_->points.at(closet_traj_point_idx);
+    const double path_yaw = tf2::getYaw(nearest_pt.pose.orientation);
+   // 車体位置と経路点の相対位置（現在位置を使用）
+    const double ex = odometry_->pose.pose.position.x - nearest_pt.pose.position.x;
+    const double ey = odometry_->pose.pose.position.y - nearest_pt.pose.position.y;
+
+/*
+//    ■線形補間へ置換。置換後
+    int idx = closet_traj_point_idx;
+    int idx2;
+    if (idx >= static_cast<int>(trajectory_->points.size()) - 1) {  // 終端
+//      idx = trajectory_->points.size() - 2; // 終端安全処理 LOOP_START_IDXを使わなければならない。
+      idx2 = LOOP_START_IDX; // 次の点は、LOOP_START_IDX
+    } else {
+      idx2 = idx + 1;
+    }
+
+    auto &p0 = trajectory_->points[idx];
+//    auto &p1 = trajectory_->points[idx + 1];
+    auto &p1 = trajectory_->points[idx2];
+
+    // 車両座標 rear_x, rear_y から補間点を計算
+    Eigen::Vector2d v(p1.pose.position.x - p0.pose.position.x,
+                      p1.pose.position.y - p0.pose.position.y);
+    Eigen::Vector2d w(rear_x - p0.pose.position.x,
+                      rear_y - p0.pose.position.y);
+
+    double t = std::clamp(v.dot(w) / v.squaredNorm(), 0.0, 1.0);
+
+    // 補間された最近傍点
+    double nearest_x = p0.pose.position.x + t * v.x();
+    double nearest_y = p0.pose.position.y + t * v.y();
+
+    // 補間された yaw（p0→p1 の方向）
+    const double path_yaw = std::atan2(v.y(), v.x());
+    const double ex = nearest_x - rear_x;
+    const double ey = nearest_y - rear_y;
+
+//    ■線形補間終わり
+*/
+    // 左正・右負の横偏差（経路座標系）
+    const double e_y = -ex * std::sin(path_yaw) + ey * std::cos(path_yaw);
+ 
+    // 低速での暴れ防止のためのソフトニングを含めた速度
+    const double v_soft = 0.1; // [m/s] 必要ならパラメータ化
+    const double v = std::max(current_longitudinal_vel, v_soft);
+    const double delta_stanley = std::atan2(stanley_gain_ * e_y, v);
+    //  左右逆だった
+//    const double delta_stanley = -std::atan2(stanley_gain_ * e_y, v);
+
+    // --- 合成操舵角（幾何 + 横偏差） ---
+//    const double delta = delta_pp + delta_stanley;
+    const double delta = delta_pp*0 + delta_stanley;
+
+    // 1) 実際に出す操舵角（既存のゲインでスケーリング）
+    cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * delta;
+
+    // 2) デバッグや速度制限に使っていた基準角（現在舵角との差）
+//    double reference_target_angle = cmd.lateral.steering_tire_angle - steering_status_->steering_tire_angle;
+
 /*
     if (steering_tire_angle * steering_tire_angle2 < 0.0) { // ２つの操舵角が逆向きの場合、遠方の操舵角との和の半分を目標操舵角とする。
 //      cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 2つのルックアヘッドの平均を操舵角にする

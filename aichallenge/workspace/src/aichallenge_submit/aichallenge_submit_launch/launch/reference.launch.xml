@@ -137,7 +137,7 @@
   <let name="steering_tire_angle_gain_var" value="3.278" unless="$(var simulation)"/>
   <let name="steering_tire_angle_gain_var" value="2.0" unless="$(var simulation)"/>
   <let name="steering_tire_angle_gain_var" value="1.0" if="$(var simulation)"/> <!-- simulator用original -->
-  <let name="steering_tire_angle_gain_var" value="2.0" if="$(var simulation)"/>
+  <let name="steering_tire_angle_gain_var" value="2.0" if="$(var simulation)"/> <!-- -->
   
   <node pkg="simple_pure_pursuit" exec="simple_pure_pursuit" name="simple_pure_pursuit_node" output="screen">
     <param name="predict_time" value="0.7"/> <!-- n秒先の自己位置を予測する -->
@@ -149,6 +149,7 @@
     <param name="map_vel_gain" value="2.0"/> <!-- mapからの読み取り速度をvalue倍します -->
     <param name="map_vel_gain" value="0.277778"/> <!-- mapからの読み取り速度[km/h]をvalue倍して[m/s]にする。1倍相当 -->
     <param name="map_vel_gain" value="0.277778"/> <!-- mapからの読み取り速度[km/h]をvalue倍して[m/s]にする。1倍相当 -->
+    <param name="map_vel_gain" value="0.20"/> <!-- mapからの読み取り速度[km/h]をvalue倍して[m/s]にする。1倍相当 -->
     <param name="external_target_vel" value="8.33333"/> <!-- 30km/h -->
     <param name="external_target_vel" value="5.55556"/> <!-- 20km/h -->
     <param name="external_target_vel" value="4.16667"/> <!-- 15km/h -->
@@ -178,6 +179,10 @@
     <param name="steering_tire_angle_gain" value="$(var steering_tire_angle_gain_var)"/>
     <param name="steering_diff_gain" value="5.0"/> <!-- 操舵D制御用 -->
     <param name="steering_diff_gain" value="0.5"/> <!-- 操舵D制御用2 -->
+
+    <param name="stanley_gain" value="1.0"/> <!-- Stanley Gain用 -->
+    <param name="stanley_gain" value="0.5"/> <!-- Stanley Gain用 -->
+    <param name="stanley_gain" value="0.1"/> <!-- Stanley Gain用 -->
 
     <param name="use_steer_angle_v_limit" value="false"/> <!-- 操舵角による速度制限をするかどうか -->
     <param name="predict_time_v_limit" value="1.0"/> <!-- n秒先の自己位置を予測する -->

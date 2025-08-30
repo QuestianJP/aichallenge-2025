@@ -70,7 +70,17 @@ class SimplePurePursuit : public rclcpp::Node {
   const double angle_limit_v2_; // 未使用
   double predict_time_;
   double steering_tire_angle_gain_;
+  double stanley_gain_; // Stanley制御用
 
+  AckermannControlCommand zeroAckermannControlCommand(const rclcpp::Time & time)
+  {
+    AckermannControlCommand cmd;
+    cmd.stamp = time;
+    cmd.longitudinal.speed = 0.0;
+    cmd.longitudinal.acceleration = 0.0;
+    cmd.lateral.steering_tire_angle = 0.0;
+    return cmd;
+  }
 
  private:
   void onTimer();

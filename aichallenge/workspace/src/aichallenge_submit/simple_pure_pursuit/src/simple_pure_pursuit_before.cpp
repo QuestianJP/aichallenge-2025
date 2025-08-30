@@ -357,28 +357,6 @@ void SimplePurePursuit::onTimer()
     //  差が小さくなっていれば、もとの指示値のままとする。
     //  走行速度を考慮したゲイン調整については、速度による操舵遅れも操舵指示の大きさの変化に反映済みと考えて、不要とする。
 
-    // ここから追加
-/* 以下、微分制御追加 */
-/*
-    double target_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
-
-    cmd.lateral.steering_tire_angle =
-      steering_tire_angle_gain_ * target_angle + steering_diff_gain_ * (target_angle - last_steering_angle);
-    last_steering_angle = target_angle;
-  //  だめだ。戻しが遅い。戻しについても、微分制御を入れなければ、間に合わない。
-    last_steering_angle = cmd.lateral.steering_tire_angle;  // 微分操舵制御用
-*/
-    // 追加終わり
-
-/*  シミュレータでは   pose_with_covarianceは不要なので、コメントアウト
-//  GNSS信号停止時に速度を下げて移動する。
-    if (current_longitudinal_vel >= 1.0 && // 移動中であり、かつ、
-      std::hypot(odometry_->pose.pose.position.x - pose_with_covariance_->pose.pose.position.x,
-                   odometry_->pose.pose.position.y - pose_with_covariance_->pose.pose.position.y)
-      > current_longitudinal_vel) { // 現在速度より大きい = 1s間の移動距離より大きい
-      target_longitudinal_vel = std::min(target_longitudinal_vel, 1.0); // 1 m/s　に目標速度を制限
-    }
-*/
 
     cmd.longitudinal.speed = target_longitudinal_vel;
 //  操舵角による速度制限
