@@ -180,13 +180,6 @@ void SimplePurePursuit::onTimer()
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
 
-//  if (
-//    (closet_traj_point_idx == trajectory_->points.size() - 1) ||
-//    (trajectory_->points.size() <= 2)) {
-//    cmd.longitudinal.speed = 0.0;
-//    cmd.longitudinal.acceleration = -10.0;
-//    RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000 /*ms*/, "reached to the goal");
-//  } else {
   // get closest trajectory point from current position
     TrajectoryPoint closet_traj_point = trajectory_->points.at(closet_traj_point_idx);
 
@@ -282,40 +275,6 @@ void SimplePurePursuit::onTimer()
     geometry_msgs::msg::PointStamped lookahead_point_msg;
     lookahead_point_msg.header.stamp = get_clock()->now();
     lookahead_point_msg.header.frame_id = "map";
-    if (false) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
-      lookahead_point_msg.point.x = lookahead_point_x;
-      lookahead_point_msg.point.y = lookahead_point_y;
-      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
-    } else {    // デバッグ情報色々
-  //    lookahead_point_msg.point.x = odometry_->pose.pose.position.x;
-  //    lookahead_point_msg.point.y = odometry_->pose.pose.position.y;
-  //    lookahead_point_msg.point.x = predicted_x;
-/*    
-      if (dbg_cnt % 300 <= 40) {  // GNSS信号停止。300*30ms中、40*30msの間は更新される。テスト用コード
-        test_x = pose_with_covariance_->pose.pose.position.x;
-        test_y = pose_with_covariance_->pose.pose.position.y;
-      } else {
-        pose_with_covariance_->pose.pose.position.x = test_x;
-        pose_with_covariance_->pose.pose.position.y = test_y;
-      }
-      dbg_cnt++;
-*/
-      // 以下、モニタ用に、ルックアヘッドポイントに代入
-      lookahead_point_msg.point.x = lookahead_point2_x;
-      lookahead_point_msg.point.y = lookahead_point2_y;
-      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
-//      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
-//      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
-//      lookahead_point_msg.point.y = lookahead_point_x;
-
-  //    lookahead_point_msg.point.y = predicted_y;
-//      lookahead_point_msg.point.y = pose_with_covariance_->pose.pose.position.y;
-  //    lookahead_point_msg.point.x = rear_x;
-  //    lookahead_point_msg.point.y = rear_y;
-//      lookahead_point_msg.point.z = predicted_yaw;
-  //    lookahead_point_msg.point.z = lookahead_distance;// 問題なさそう。
-  //    lookahead_point_msg.point.z = predicted_x;  // こちらも一応連続になった。
-    }
 //    pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でメッセージ発行は下の方で。
 
     // calc steering angle for lateral control
@@ -548,7 +507,42 @@ void SimplePurePursuit::onTimer()
 */
     pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
 
-//  } //　残りポイントが少なくなったら、操舵をやめて停止するようになっている。操舵が必要な場合は、このelse範囲を変更しなければならない。
+
+    if (false) { // Original ルックアヘッド位置  デバッグ時は、falseにする。本番は、trueにしなければならない。
+      lookahead_point_msg.point.x = lookahead_point_x;
+      lookahead_point_msg.point.y = lookahead_point_y;
+      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
+    } else {    // デバッグ情報色々
+  //    lookahead_point_msg.point.x = odometry_->pose.pose.position.x;
+  //    lookahead_point_msg.point.y = odometry_->pose.pose.position.y;
+  //    lookahead_point_msg.point.x = predicted_x;
+/*    
+      if (dbg_cnt % 300 <= 40) {  // GNSS信号停止。300*30ms中、40*30msの間は更新される。テスト用コード
+        test_x = pose_with_covariance_->pose.pose.position.x;
+        test_y = pose_with_covariance_->pose.pose.position.y;
+      } else {
+        pose_with_covariance_->pose.pose.position.x = test_x;
+        pose_with_covariance_->pose.pose.position.y = test_y;
+      }
+      dbg_cnt++;
+*/
+      // 以下、モニタ用に、ルックアヘッドポイントに代入
+      lookahead_point_msg.point.x = lookahead_point2_x;
+      lookahead_point_msg.point.y = lookahead_point2_y;
+      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
+//      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
+//      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
+//      lookahead_point_msg.point.y = lookahead_point_x;
+
+  //    lookahead_point_msg.point.y = predicted_y;
+//      lookahead_point_msg.point.y = pose_with_covariance_->pose.pose.position.y;
+  //    lookahead_point_msg.point.x = rear_x;
+  //    lookahead_point_msg.point.y = rear_y;
+//      lookahead_point_msg.point.z = predicted_yaw;
+  //    lookahead_point_msg.point.z = lookahead_distance;// 問題なさそう。
+  //    lookahead_point_msg.point.z = predicted_x;  // こちらも一応連続になった。
+    }
+
   pub_cmd_->publish(cmd);
   cmd.lateral.steering_tire_angle /=  steering_tire_angle_gain_;
   pub_raw_cmd_->publish(cmd);
