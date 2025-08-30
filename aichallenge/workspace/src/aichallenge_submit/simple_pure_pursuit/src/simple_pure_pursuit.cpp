@@ -170,8 +170,6 @@ void SimplePurePursuit::onTimer()
   predicted_pos.position.x = predicted_x;
   predicted_pos.position.y = predicted_y;
 
-//  size_t closet_traj_point_idx =
-//    findNearestIndex(trajectory_->points, odometry_->pose.pose.position);///■これ、まずい。odometryの中身を書き換える。
   size_t closet_traj_point_idx = findNearestIndex(trajectory_->points, odometry_->pose.pose.position);
   size_t predicted_closet_traj_point_idx = findNearestIndex(trajectory_->points, predicted_pos.position);
 
@@ -416,9 +414,9 @@ void SimplePurePursuit::onTimer()
       dbg_cnt++;
 */
       // 以下、モニタ用に、ルックアヘッドポイントに代入
-      lookahead_point_msg.point.x = alpha;
-      lookahead_point_msg.point.y = yaw;
-      lookahead_point_msg.point.z = steering_tire_angle;  // closet_traj_point.pose.position.z
+      lookahead_point_msg.point.x = lookahead_point_x;
+      lookahead_point_msg.point.y = lookahead_point_y;
+      lookahead_point_msg.point.z = e_y;  // closet_traj_point.pose.position.z
 //      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
 //      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
 //      lookahead_point_msg.point.y = lookahead_point_x;
