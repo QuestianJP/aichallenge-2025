@@ -70,6 +70,7 @@ class SimplePurePursuit : public rclcpp::Node {
   const double angle_limit_v2_; // 未使用
   double predict_time_;
   double steering_tire_angle_gain_;
+  double  steering_lpf_gain_;
   double stanley_gain_; // Stanley制御用
 
   AckermannControlCommand zeroAckermannControlCommand(const rclcpp::Time & time)
@@ -87,7 +88,7 @@ class SimplePurePursuit : public rclcpp::Node {
   bool subscribeMessageAvailable();
 //  std::shared_ptr<rclcpp::ParameterEventHandler>  param_subscriber_;  //  RTPC
 //  std::shared_ptr<rclcpp::ParameterCallbackHandle>  cb_handle_;       //  RTPC
-//  double last_steering_angle; //  微分操舵制御用
+  double prev_steering_angle = 0.0; //  微分操舵制御用
   int dbg_cnt;  //  テスト用
   double test_x;
   double test_y;

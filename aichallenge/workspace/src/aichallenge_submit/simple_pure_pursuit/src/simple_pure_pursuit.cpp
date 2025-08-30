@@ -36,6 +36,7 @@ SimplePurePursuit::SimplePurePursuit()
   angle_limit_v2_(declare_parameter<float>("angle_limit_v2", 4.16667)),  // 先読み用
   predict_time_(declare_parameter<float>("predict_time", 0.5)),  // 先読み用
   steering_tire_angle_gain_(declare_parameter<float>("steering_tire_angle_gain", 1.0)),
+  steering_lpf_gain_(declare_parameter<double>("steering_lpf_gain", 0.3)),
   stanley_gain_(declare_parameter<float>("stanley_gain", 1.0))  // Stanley制御用 
 {
   pub_cmd_ = create_publisher<AckermannControlCommand>("output/control_cmd", 1);
@@ -346,7 +347,13 @@ void SimplePurePursuit::onTimer()
     const double delta = delta_pp + delta_stanley*0;
 
     // 1) 実際に出す操舵角（既存のゲインでスケーリング）
-    cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * delta;
+    double raw_cmd_angle = steering_tire_angle_gain_ * delta;
+
+    // LPF適用 (steering_lpf_gain_ は0〜1、0.0に近いほど滑らか)
+    cmd.lateral.steering_tire_angle =
+        steering_lpf_gain_ * raw_cmd_angle + (1.0 - steering_lpf_gain_) * prev_steering_angle;
+
+    prev_steering_angle = cmd.lateral.steering_tire_angle;
 
     // 2) デバッグや速度制限に使っていた基準角（現在舵角との差）
 //    double reference_target_angle = cmd.lateral.steering_tire_angle - steering_status_->steering_tire_angle;
@@ -375,7 +382,6 @@ void SimplePurePursuit::onTimer()
         cmd.longitudinal.speed = std::min(angle_limit_v_, target_longitudinal_vel);
         //  ここで、操舵角をもとに、目標速度を加減してもいいかもしれない
     }
-
 
     cmd.longitudinal.acceleration =
       speed_proportional_gain_ * (cmd.longitudinal.speed - current_longitudinal_vel); //  速度は振動しそうだ
@@ -432,6 +438,7 @@ void SimplePurePursuit::onTimer()
     pub_lookahead_point_->publish(lookahead_point_msg); // 速度操舵角制限でデバッグメッセージ発行はこちらで。
 
   pub_cmd_->publish(cmd);
+  
   cmd.lateral.steering_tire_angle /=  steering_tire_angle_gain_;
   pub_raw_cmd_->publish(cmd);
 }
