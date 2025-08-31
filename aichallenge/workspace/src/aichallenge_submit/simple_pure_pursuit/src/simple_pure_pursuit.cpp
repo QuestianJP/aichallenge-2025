@@ -37,6 +37,7 @@ SimplePurePursuit::SimplePurePursuit()
   predict_time_(declare_parameter<float>("predict_time", 0.5)),  // 先読み用
   steering_tire_angle_gain_(declare_parameter<float>("steering_tire_angle_gain", 1.0)),
   steering_lpf_gain_(declare_parameter<double>("steering_lpf_gain", 0.3)),
+  steering_velocity_gain_(declare_parameter<double>("steering_velocity_gain", 0.0)),
   stanley_gain_(declare_parameter<float>("stanley_gain", 1.0))  // Stanley制御用 
 {
   pub_cmd_ = create_publisher<AckermannControlCommand>("output/control_cmd", 1);
@@ -347,7 +348,7 @@ void SimplePurePursuit::onTimer()
     const double delta = delta_pp + delta_stanley*0;
 
     // 1) 実際に出す操舵角（既存のゲインでスケーリング）
-    double raw_cmd_angle = steering_tire_angle_gain_ * delta;
+    double raw_cmd_angle = steering_tire_angle_gain_ * delta * (1 + steering_velocity_gain_ * current_longitudinal_vel); // 速度が上がると操舵角が増える傾向にあるので、補正を入れてみた
 
     // LPF適用 (steering_lpf_gain_ は0〜1、0.0に近いほど滑らか)
     cmd.lateral.steering_tire_angle =
