@@ -184,8 +184,10 @@ void SimplePurePursuit::onTimer()
     double lookahead_distance2 = lookahead_gain2_ * current_longitudinal_vel + lookahead_min_distance2_; // 先読み用
 
     //// calc center coordinate of rear wheel
-    double rear_x = odometry_->pose.pose.position.x - wheel_base_ / 2.0 * std::cos(yaw);
-    double rear_y = odometry_->pose.pose.position.y - wheel_base_ / 2.0 * std::sin(yaw);
+//    double rear_x = odometry_->pose.pose.position.x - wheel_base_ / 2.0 * std::cos(yaw);
+//    double rear_y = odometry_->pose.pose.position.y - wheel_base_ / 2.0 * std::sin(yaw);
+    double rear_x = odometry_->pose.pose.position.x;
+    double rear_y = odometry_->pose.pose.position.y;
 
     //// search lookahead point
 
