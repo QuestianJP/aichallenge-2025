@@ -165,15 +165,8 @@ void SimplePurePursuit::onTimer()
 
   double current_longitudinal_vel = odometry_->twist.twist.linear.x; // 現在の速度
   double yaw = tf2::getYaw(odometry_->pose.pose.orientation);// 現在の車体の向き。x軸と一致する向きが0
-  double predicted_x = odometry_->pose.pose.position.x + std::cos(yaw) * current_longitudinal_vel * predict_time_;
-  double predicted_y = odometry_->pose.pose.position.y + std::sin(yaw) * current_longitudinal_vel * predict_time_;
-  double predicted_yaw = yaw + odometry_->twist.twist.angular.z * predict_time_; // zは、車体の角速度（ラジアン/秒）
-  geometry_msgs::msg::Pose predicted_pos = odometry_->pose.pose;  // poseとposが混在している気がする。正しいのかな？
-  predicted_pos.position.x = predicted_x;
-  predicted_pos.position.y = predicted_y;
 
   size_t closet_traj_point_idx = findNearestIndex(trajectory_->points, odometry_->pose.pose.position);
-  size_t predicted_closet_traj_point_idx = findNearestIndex(trajectory_->points, predicted_pos.position);
 
   // publish zero command
   AckermannControlCommand cmd = zeroAckermannControlCommand(get_clock()->now());
@@ -193,8 +186,6 @@ void SimplePurePursuit::onTimer()
     //// calc center coordinate of rear wheel
     double rear_x = odometry_->pose.pose.position.x - wheel_base_ / 2.0 * std::cos(yaw);
     double rear_y = odometry_->pose.pose.position.y - wheel_base_ / 2.0 * std::sin(yaw);
-    double predicted_rear_x = predicted_x - wheel_base_ / 2.0 * std::cos(predicted_yaw);
-    double predicted_rear_y = predicted_y - wheel_base_ / 2.0 * std::sin(predicted_yaw);
 
     //// search lookahead point
 
@@ -212,9 +203,6 @@ void SimplePurePursuit::onTimer()
     // 距離関数
     auto dist_from_rear = [&](const TrajectoryPoint &p) {
       return std::hypot(p.pose.position.x - rear_x, p.pose.position.y - rear_y);
-    };
-    auto dist_from_pred_rear = [&](const TrajectoryPoint &p) {
-      return std::hypot(p.pose.position.x - predicted_rear_x, p.pose.position.y - predicted_rear_y);
     };
 
     // 汎用リング探索関数
@@ -246,7 +234,7 @@ void SimplePurePursuit::onTimer()
     auto lookahead_point_itr  = find_lookahead(
         clamp_to_loop(closet_traj_point_idx), dist_from_rear,      lookahead_distance);
     auto lookahead_point2_itr = find_lookahead(
-        clamp_to_loop(predicted_closet_traj_point_idx), dist_from_pred_rear, lookahead_distance2);
+        clamp_to_loop(closet_traj_point_idx), dist_from_rear, lookahead_distance2);
 
     double lookahead_point_x = lookahead_point_itr->pose.position.x;
     double lookahead_point_y = lookahead_point_itr->pose.position.y;
@@ -261,7 +249,7 @@ void SimplePurePursuit::onTimer()
     double alpha = std::atan2(lookahead_point_y - rear_y, lookahead_point_x - rear_x) - yaw; // 車体の位置と、向きを予測
     double steering_tire_angle = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance);
 
-    alpha = std::atan2(lookahead_point2_y - predicted_rear_y, lookahead_point2_x - predicted_rear_x) - predicted_yaw; // x秒後のルックアヘッド
+    alpha = std::atan2(lookahead_point2_y - rear_y, lookahead_point2_x - rear_x) - yaw; // x秒後のルックアヘッド
     double steering_tire_angle2 = std::atan2(2.0 * wheel_base_ * std::sin(alpha), lookahead_distance2);
 
     cmd.lateral.steering_tire_angle = steering_tire_angle_gain_ * (steering_tire_angle + steering_tire_angle2) / 2.0;  // 現在と、未来の2つの平均を操舵角にする
