@@ -184,10 +184,9 @@ void SimplePurePursuit::onTimer()
     double lookahead_distance2 = lookahead_gain2_ * current_longitudinal_vel + lookahead_min_distance2_; // 先読み用
 
     //// calc center coordinate of rear wheel
-//    double rear_x = odometry_->pose.pose.position.x - wheel_base_ / 2.0 * std::cos(yaw);
-//    double rear_y = odometry_->pose.pose.position.y - wheel_base_ / 2.0 * std::sin(yaw);
-    double rear_x = odometry_->pose.pose.position.x;
-    double rear_y = odometry_->pose.pose.position.y;
+    double rear_x = odometry_->pose.pose.position.x - wheel_base_ / 2.0 * std::cos(yaw);
+    double rear_y = odometry_->pose.pose.position.y - wheel_base_ / 2.0 * std::sin(yaw);
+
 
     //// search lookahead point
 
@@ -310,7 +309,7 @@ void SimplePurePursuit::onTimer()
       // 以下、モニタ用に、ルックアヘッドポイントに代入
       lookahead_point_msg.point.x = lookahead_point_x;
       lookahead_point_msg.point.y = lookahead_point_y;
-      lookahead_point_msg.point.z = yaw;  // closet_traj_point.pose.position.z
+      lookahead_point_msg.point.z = closet_traj_point.pose.position.z;
 //      lookahead_point_msg.point.x = pose_with_covariance_->pose.pose.position.x;
 //      lookahead_point_msg.point.x = closet_traj_point.pose.position.x;
 //      lookahead_point_msg.point.y = lookahead_point_x;
